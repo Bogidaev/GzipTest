@@ -13,7 +13,7 @@ namespace Test
 
         public Queue()
         {
-            var size = Environment.ProcessorCount-1;
+            var size = Environment.ProcessorCount >= 2 ? Environment.ProcessorCount-1 : 1;
             this._workers = new LinkedList<Thread>();
             for (var i = 0; i < size; ++i)
             {
@@ -32,16 +32,14 @@ namespace Test
                 {
                     GC.SuppressFinalize(this);
 
-                    this._disallowAdd =
-                        true; // wait for all tasks to finish processing while not allowing any more new tasks
+                    this._disallowAdd = true; 
                     while (this._tasks.Count > 0)
                     {
                         Monitor.Wait(this._tasks);
                     }
 
                     this._disposed = true;
-                    Monitor.PulseAll(this
-                        ._tasks); // wake all workers (none of them will be active at this point; disposed flag will cause then to finish so that we can join them)
+                    Monitor.PulseAll(this._tasks);
                     waitForThreads = true;
                 }
             }
@@ -60,12 +58,11 @@ namespace Test
             {
                 if (this._disallowAdd)
                 {
-                    throw new InvalidOperationException(
-                        "This Pool instance is in the process of being disposed, can't add anymore");
+                    throw new InvalidOperationException("Этот экземпляр пула находится в процессе размещения, больше не может добавлять");
                 }
                 if (this._disposed)
                 {
-                    throw new ObjectDisposedException("This Pool instance has already been disposed");
+                    throw new ObjectDisposedException("Этот экземпляр пула уже установлен");
                 }
                 this._tasks.AddLast(task);
 

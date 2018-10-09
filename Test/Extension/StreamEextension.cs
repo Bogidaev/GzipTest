@@ -9,6 +9,11 @@ namespace Test.Extension
 {
     public static class StreamExtensions
     {
+        /// <summary>
+        /// Копирование стрима
+        /// </summary>
+        /// <param name="src">Текущий стрим</param>
+        /// <param name="dest">В копируемый стрим</param>
         public static void CopyTo(this Stream src, Stream dest)
         {
             byte[] buffer = new byte[1024 * 1024];

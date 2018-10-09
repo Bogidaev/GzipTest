@@ -56,7 +56,7 @@ namespace Test
         }
 
         /// <summary>
-        /// Выполнять
+        /// Выполнить
         /// </summary>
         /// <param name="readingStream">Поток чтения</param>
         /// <param name="writeStream">Поток записи</param>
@@ -78,8 +78,8 @@ namespace Test
         {
             var blocksCount = (int) (readingStream.Length / SizeBlock + (readingStream.Length % SizeBlock > 0 ? 1 : 0));
             var destBlockIndex = 0;
-            _waitingSignal = new AutoResetEvent(false);
-            _recordingSignal = new ManualResetEvent(false);
+            this._waitingSignal = new AutoResetEvent(false);
+            this._recordingSignal = new ManualResetEvent(false);
 
             readingStream.Seek(0, SeekOrigin.Begin);
             writeStream.Seek(0, SeekOrigin.Begin);
@@ -91,24 +91,22 @@ namespace Test
                     long number = i;
                     queue.QueueTask(() =>
                     {
-                        CompressThread(readingStream, writeStream, number, blocksCount, ref destBlockIndex);
+                        this.CompressThread(readingStream, writeStream, number, blocksCount, ref destBlockIndex);
                     });
                 }
 
-                _waitingSignal.WaitOne();
+                this._waitingSignal.WaitOne();
             }
         }
 
         private void Decompress(Stream readingStream, Stream writeStream)
         {
             var blockList = new List<Block>();
-            _waitingSignal = new AutoResetEvent(false);
-            _recordingSignal = new ManualResetEvent(false);
+            this._waitingSignal = new AutoResetEvent(false);
+            this._recordingSignal = new ManualResetEvent(false);
             var destBlockIndex = 0;
             var binaryReader = new BinaryReader(readingStream);
             var number = 0;
-            var header = sizeof(int);
-
 
             while (readingStream.Position < readingStream.Length)
             {
@@ -118,7 +116,7 @@ namespace Test
                 blockList.Add(new Block
                 {
                     Number = number,
-                    Size = blockSize + header
+                    Size = blockSize + _header
                 });
                 number++;
             }
@@ -131,10 +129,10 @@ namespace Test
                 {
                     queue.QueueTask(() =>
                     {
-                        DecompressThread(readingStream, writeStream, block, blockList, ref destBlockIndex);
+                        this.DecompressThread(readingStream, writeStream, block, blockList, ref destBlockIndex);
                     });
                 }
-                _waitingSignal.WaitOne();
+                this._waitingSignal.WaitOne();
             }
         }
 
@@ -179,17 +177,17 @@ namespace Test
             int readBlockLength;
             lock (ReadLocker)
             {
-                readingStream.Seek(blockList.Where(x => x.Number < block.Number).Sum(x => (long)x.Size) + Header,
+                readingStream.Seek(blockList.Where(x => x.Number < block.Number).Sum(x => (long)x.Size) + _header,
                     SeekOrigin.Begin);
                 readBlockLength = readingStream.Read(buffer, 0, block.Size);
             }
 
-            var arr = DecompressBuffer(buffer, readBlockLength);
+            var arr = this.DecompressBuffer(buffer, readBlockLength);
 
             while (destBlockIndex != block.Number)
             {
-                _recordingSignal.WaitOne();
-                _recordingSignal.Reset();
+                this._recordingSignal.WaitOne();
+                this._recordingSignal.Reset();
             }
 
             lock (WriteLocker)
@@ -198,11 +196,11 @@ namespace Test
 
                 if (++destBlockIndex == blockList.Count)
                 {
-                    _waitingSignal.Set();
+                    this._waitingSignal.Set();
                 }
 
-                _recordingSignal.Set();
-                WriteProgress(destBlockIndex, blockList.Count);
+                this._recordingSignal.Set();
+                this.WriteProgress(destBlockIndex, blockList.Count);
             }
         }
 
@@ -217,12 +215,12 @@ namespace Test
                 bytesRead = readingStream.Read(buffer, 0, SizeBlock);
             }
 
-            var siz = Compression(buffer, bytesRead);
+            var siz = this.Compression(buffer, bytesRead);
 
             while (destBlockIndex != number)
             {
-                _recordingSignal.WaitOne();
-                _recordingSignal.Reset();
+                this._recordingSignal.WaitOne();
+                this._recordingSignal.Reset();
             }
 
             lock (WriteLocker)
@@ -230,15 +228,14 @@ namespace Test
                 var binaryWriter = new BinaryWriter(writeStream);
                 binaryWriter.Write(siz.Length);
                 writeStream.Write(siz, 0, siz.Length);
-                //list.Add(new Block{ Number = number, Size = siz.Length });
 
                 if (++destBlockIndex == blocksCount)
                 {
-                    _waitingSignal.Set();
+                    this._waitingSignal.Set();
                 }
 
-                _recordingSignal.Set();
-                WriteProgress(destBlockIndex, blocksCount);
+                this._recordingSignal.Set();
+                this.WriteProgress(destBlockIndex, blocksCount);
             }
 
         }

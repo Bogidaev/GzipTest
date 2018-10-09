@@ -6,9 +6,9 @@ using Test.Model;
 
 namespace Test
 {
-    class Program
+    internal class Program
     {
-        static void Main(string[] args)
+        private static void Main(string[] args)
         {
             try
             {
@@ -47,7 +47,7 @@ namespace Test
                 throw new IncorrectParametersException("Некорректное количество аргументов");
             }
 
-            var arguments =  new Arguments
+            var arguments = new Arguments
             {
                 From = args[1],
                 To = args[2]
@@ -66,6 +66,6 @@ namespace Test
 
             return arguments;
         }
-}
+    }
 
 }
