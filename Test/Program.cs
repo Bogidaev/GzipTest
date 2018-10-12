@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using Test.Exceptions;
@@ -10,6 +11,9 @@ namespace Test
     {
         private static void Main(string[] args)
         {
+            Stopwatch stopWatch = new Stopwatch();
+            stopWatch.Start();
+
             try
             {
                 var arg = ReadProcessing(args);
@@ -26,6 +30,11 @@ namespace Test
                 Console.WriteLine();
                 Console.WriteLine(e.Message);
             }
+
+            stopWatch.Stop();
+            TimeSpan ts = stopWatch.Elapsed;
+            string elapsedTime = $"{ts.Hours:00}:{ts.Minutes:00}:{ts.Seconds:00}.{ts.Milliseconds / 10:00}";
+            Console.WriteLine("RunTime " + elapsedTime);
         }
 
         private static void Run(Arguments arg)
