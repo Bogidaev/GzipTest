@@ -13,7 +13,7 @@ namespace Test
 
         public Queue()
         {
-            var size = Environment.ProcessorCount >= 2 ? Environment.ProcessorCount-1 : 1;
+            var size = Environment.ProcessorCount;
             this._workers = new LinkedList<Thread>();
             for (var i = 0; i < size; ++i)
             {

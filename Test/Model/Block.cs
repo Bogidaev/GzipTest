@@ -13,6 +13,11 @@
         /// <summary>
         /// Размер
         /// </summary>
-        public int Size { get; set; }
+        public int Size { get; set; }       
+        
+        /// <summary>
+        /// Позиция
+        /// </summary>
+        public long Position { get; set; }
     }
 }
