@@ -16,7 +16,14 @@ namespace Test
 
             try
             {
-                var arg = ReadProcessing(args);
+                //var arg = ReadProcessing(args);
+
+                var arg = new Arguments
+                {
+                    Mode = CompressionMode.Compress, 
+                    From = @"C:\Files\The.Good.Doctor.S02E03.1080p.rus.LostFilm.TV.mkv",
+                    To = @"C:\Files\1.gz"
+                };
 
                 Run(arg);
             }
@@ -40,13 +47,12 @@ namespace Test
         private static void Run(Arguments arg)
         {
             var gzip = new Gzip(arg.Mode);
-            using (FileStream sourceStream = File.Open(arg.From, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-            {
+
                 using (FileStream targetStream = File.Create(arg.To))
                 {
-                    gzip.Execute(sourceStream, targetStream);
+                    gzip.Execute(arg.From, targetStream);
                 }
-            }
+            
         }
 
         private static Arguments ReadProcessing(string[] args)

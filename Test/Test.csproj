@@ -43,6 +43,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="CustomThreadPool.cs" />
     <Compile Include="Exceptions\IncorrectParametersException.cs" />
     <Compile Include="Extension\StreamEextension.cs" />
     <Compile Include="Gzip.cs" />

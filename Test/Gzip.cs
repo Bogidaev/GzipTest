@@ -28,7 +28,7 @@ namespace Test
         /// <summary>
         /// Размер блока
         /// </summary>
-        public int SizeBlock = 1024 * 1024 * 25;
+        public int SizeBlock = 1024 * 1024*250;
 
         /// <summary>
         /// Размер шапки
@@ -45,6 +45,17 @@ namespace Test
         /// </summary>
         private static readonly object WriteLocker = new object();
 
+        //private Queue QueueRead { get; }  =  new Queue(Environment.ProcessorCount*2);
+        //private Queue QueueWrite { get; }  =  new Queue(Environment.ProcessorCount*2);
+
+
+        private CustomThreadPool.CustomThreadPool CustomThreadPool { get; set; } =
+            new CustomThreadPool.CustomThreadPool(10);
+        private CustomThreadPool.CustomThreadPool CustomThreadPool1 { get; set; } =
+            new CustomThreadPool.CustomThreadPool(5);
+
+        private int DestBlockIndex { get; set; }
+
         public Gzip(CompressionMode mode)
         {
             Mode = mode;
@@ -53,84 +64,92 @@ namespace Test
         /// <summary>
         /// Выполнить
         /// </summary>
-        /// <param name="readingStream">Поток чтения</param>
+        /// <param name="from">Поток чтения</param>
         /// <param name="writeStream">Поток записи</param>
-        public void Execute(Stream readingStream, Stream writeStream)
+        public void Execute(string from, Stream writeStream)
         {
             switch (Mode)
             {
                 case CompressionMode.Compress:
-                    Compress(readingStream, writeStream);
+                    Compress(from, writeStream);
                     break;
 
-                case CompressionMode.Decompress:
-                    Decompress(readingStream, writeStream);
-                    break;
+                //case CompressionMode.Decompress:
+                //    Decompress(readingStream, writeStream);
+                //    break;
             }
         }
 
-        private void Compress(Stream readingStream, Stream writeStream)
+        private void Compress(string from, Stream writeStream)
         {
-            var blocksCount = (int) (readingStream.Length / SizeBlock + (readingStream.Length % SizeBlock > 0 ? 1 : 0));
-            var destBlockIndex = 0;
+
+            var blocksCount = 0;
+            using (FileStream readingStream = File.Open(from, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            {
+                blocksCount = (int) (readingStream.Length / SizeBlock + (readingStream.Length % SizeBlock > 0 ? 1 : 0));
+            }
+
+
+            DestBlockIndex = 0;
             this._waitingSignal = new AutoResetEvent(false);
 
-            readingStream.Seek(0, SeekOrigin.Begin);
             writeStream.Seek(0, SeekOrigin.Begin);
 
-            using (var queue = new Queue())
+            for (int i = 0; i < blocksCount; i++)
             {
-                for (int i = 0; i < blocksCount; i++)
+                long number = i;
+                CustomThreadPool.QueueUserWorkItem(() =>
                 {
-                    long number = i;
-                    queue.QueueTask(() =>
-                    {
-                        this.CompressThread(readingStream, writeStream, number, blocksCount, ref destBlockIndex);
-                    });
-                }
-
-                this._waitingSignal.WaitOne();
-            }
-        }
-
-        private void Decompress(Stream readingStream, Stream writeStream)
-        {
-            var blockList = new List<Block>();
-            this._waitingSignal = new AutoResetEvent(false);
-            var destBlockIndex = 0;
-            var binaryReader = new BinaryReader(readingStream);
-            var number = 0;
-
-            while (readingStream.Position < readingStream.Length)
-            {
-                var position = binaryReader.ReadInt64();
-                var blockSize = binaryReader.ReadInt32();
-   
-                readingStream.Seek(blockSize, SeekOrigin.Current);
-
-                blockList.Add(new Block
-                {
-                    Number = number,
-                    Size = blockSize + _header, 
-                    Position = position
+                    this.CompressThread(from, writeStream, number, blocksCount);
                 });
-                number++;
             }
 
-            readingStream.Seek(0, SeekOrigin.Begin);
+            this._waitingSignal.WaitOne();
+            //this.QueueRead.Dispose();
+            //QueueWrite.Dispose();
 
-            using (var queue = new Queue())
-            {
-                foreach (var block in blockList)
-                {
-                    queue.QueueTask(() =>
-                    {
-                        this.DecompressThread(readingStream, writeStream, block, blockList, ref destBlockIndex);
-                    });
-                }
-                this._waitingSignal.WaitOne();
-            }
+            (CustomThreadPool as IDisposable).Dispose();
+            (CustomThreadPool1 as IDisposable).Dispose();
         }
+
+        //private void Decompress(Stream readingStream, Stream writeStream)
+        //{
+        //    var blockList = new List<Block>();
+        //    this._waitingSignal = new AutoResetEvent(false);
+        //    DestBlockIndex = 0;
+        //    var binaryReader = new BinaryReader(readingStream);
+        //    var number = 0;
+
+        //    while (readingStream.Position < readingStream.Length)
+        //    {
+        //        var position = binaryReader.ReadInt64();
+        //        var blockSize = binaryReader.ReadInt32();
+
+        //        readingStream.Seek(blockSize, SeekOrigin.Current);
+
+        //        blockList.Add(new Block
+        //        {
+        //            Number = number,
+        //            Size = blockSize + _header,
+        //            Position = position
+        //        });
+        //        number++;
+        //    }
+
+        //    readingStream.Seek(0, SeekOrigin.Begin);
+
+        //    foreach (var block in blockList)
+        //    {
+        //        QueueRead.QueueTask(() =>
+        //        {
+        //            this.DecompressThread(readingStream, writeStream, block, blockList);
+        //        });
+        //    }
+        //    this._waitingSignal.WaitOne();
+        //    QueueRead.Dispose();
+        //    QueueWrite.Dispose();
+
+        //}
 
         private byte[] Compression(byte[] date, int length)
         {
@@ -166,7 +185,7 @@ namespace Test
             Console.Write($"Завершено: {100 * number / count}%");
         }
 
-        private void DecompressThread(Stream readingStream, Stream writeStream, Block block, List<Block> blockList, ref int destBlockIndex)
+        private void DecompressThread(Stream readingStream, Stream writeStream, Block block, List<Block> blockList)
         {
             var buffer = new byte[10];
             Array.Resize(ref buffer, block.Size);
@@ -185,22 +204,22 @@ namespace Test
                 writeStream.Seek(block.Position, SeekOrigin.Begin);
                 writeStream.Write(arr, 0, arr.Length);
 
-                if (++destBlockIndex == blockList.Count)
+                if (++DestBlockIndex == blockList.Count)
                 {
                     this._waitingSignal.Set();
                 }
 
-                this.WriteProgress(destBlockIndex, blockList.Count);
+                this.WriteProgress(DestBlockIndex, blockList.Count);
             }
         }
 
-        private void CompressThread(Stream readingStream, Stream writeStream, long number, int blocksCount, ref int destBlockIndex)
+        private void CompressThread(string from, Stream writeStream, long number, int blocksCount)
         {
             var buffer = new byte[SizeBlock];
             int bytesRead;
             var position = SizeBlock * number;
 
-            lock (ReadLocker)
+            using (FileStream readingStream = File.Open(from, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             {
                 readingStream.Seek(position, SeekOrigin.Begin);
                 bytesRead = readingStream.Read(buffer, 0, SizeBlock);
@@ -208,21 +227,32 @@ namespace Test
 
             var siz = this.Compression(buffer, bytesRead);
 
-            lock (WriteLocker)
+            CustomThreadPool1.QueueUserWorkItem(() =>
             {
-                var binaryWriter = new BinaryWriter(writeStream);
-                binaryWriter.Write(position);
-                binaryWriter.Write(siz.Length);
-                writeStream.Write(siz, 0, siz.Length);
-
-                if (++destBlockIndex == blocksCount)
+                lock (WriteLocker)
                 {
-                    this._waitingSignal.Set();
+                    var binaryWriter = new BinaryWriter(writeStream);
+                    binaryWriter.Write(position);
+                    binaryWriter.Write(siz.Length);
+                    writeStream.Write(siz, 0, siz.Length);
+
+                    
+                    if (++DestBlockIndex == blocksCount)
+                    {
+                        this._waitingSignal.Set();
+                    }
+                    this.WriteProgress(DestBlockIndex, blocksCount);
                 }
 
-                this.WriteProgress(destBlockIndex, blocksCount);
-            }
 
+
+
+            });
+        }
+
+        private void CompressWriteThread(string from, Stream writeStream, long number, int blocksCount,
+            ref int destBlockIndex)
+        {
         }
     }
 }

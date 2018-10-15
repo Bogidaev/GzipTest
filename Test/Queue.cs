@@ -23,6 +23,17 @@ namespace Test
             }
         }
 
+        public Queue(int size)
+        {
+            this._workers = new LinkedList<Thread>();
+            for (var i = 0; i < size; ++i)
+            {
+                var worker = new Thread(this.Worker) { Name = string.Concat("Worker ", i) };
+                worker.Start();
+                this._workers.AddLast(worker);
+            }
+        }
+
         public void Dispose()
         {
             var waitForThreads = false;
